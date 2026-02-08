@@ -40,13 +40,17 @@ const startServer = async() => {
   app.use(passport.initialize());
 
   // Auth routes (login, signup, Google OAuth)
-  app.use("/", (req, res, next) => {
+  app.use("/api/auth", (req, res, next) => {
     req.db = userConnection;
     next();
   }, authform);
 
+  app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+  });
+
   // User profile route
-  app.use("/", (req, res, next) => {
+  app.use("/api/user", (req, res, next) => {
     req.db = userConnection;
     next();
   }, meRoute);
@@ -75,7 +79,7 @@ const startServer = async() => {
   },blogForm);
 
   // Order routes
-  app.use("/",(req,res,next) => {
+  app.use("/api/orders",(req,res,next) => {
     req.db = orderConnection;
     next();
   },orderForm);

@@ -68,8 +68,8 @@ passport.deserializeUser(async (id, done) => {
 });
 
 // POST /api/auth/login - Regular Login
-router.post('/api/auth/login', async (req, res) => {
-  console.log('🔐 Login attempt:', req.body.email);
+router.post('/login', async (req, res) => {
+  console.log('Login attempt:', req.body.email);
   
   const { email, password } = req.body;
 
@@ -128,7 +128,7 @@ router.post('/api/auth/login', async (req, res) => {
 });
 
 // POST /api/auth/logout - Logout
-router.post('/api/auth/logout', (req, res) => {
+router.post('/logout', (req, res) => {
   console.log('👋 Logout request');
   
   // Clear the cookie
@@ -148,7 +148,7 @@ router.post('/api/auth/logout', (req, res) => {
 });
 
 // POST /api/auth/signup - Signup
-router.post('/api/auth/signup', async (req, res) => {
+router.post('/signup', async (req, res) => {
   console.log('📝 Signup attempt:', req.body.email);
   
   const { name, email, password, phone } = req.body;
@@ -211,7 +211,7 @@ router.post('/api/auth/signup', async (req, res) => {
 });
 
 // GET /auth/google - Initiate Google OAuth
-router.get('/auth/google',
+router.get('/google',
   passport.authenticate('google', { 
     scope: ['profile', 'email'],
     session: false
@@ -219,7 +219,7 @@ router.get('/auth/google',
 );
 
 // GET /auth/google/callback - Google OAuth Callback
-router.get('/auth/google/callback', 
+router.get('/google/callback', 
   passport.authenticate('google', { 
     session: false,
     failureRedirect: 'http://localhost:8080/login?error=google_auth_failed'

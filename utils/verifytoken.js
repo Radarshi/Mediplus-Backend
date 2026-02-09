@@ -1,28 +1,29 @@
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
-// Middleware to verify JWT token from cookies OR headers
-export const verifyToken = (req, res, next) => {
+const verifyToken = (req, res, next) => {
   let token;
 
-  // Try to get token from cookies first (more secure)
-  token = req.cookies.token;
+  // 1️⃣ Check Authorization header
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  }
 
-  // If no cookie, try Authorization header (for backward compatibility)
-  if (!token) {
-    const auth = req.headers.authorization || '';
-    token = auth.startsWith('Bearer ') ? auth.split(' ')[1] : null;
+  // 2️⃣ If no header, check cookies
+  if (!token && req.cookies?.token) {
+    token = req.cookies.token;
   }
 
   if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
+    return res.status(401).json({ error: "No token provided" });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.id;
+    req.userId = decoded.userId;
     next();
   } catch (err) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    return res.status(401).json({ error: "Token invalid or expired" });
   }
 };
 

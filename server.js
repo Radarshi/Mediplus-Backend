@@ -6,13 +6,13 @@ import cookieParser from 'cookie-parser';
 import passport from 'passport';
 import { initBlogConnection, initConsultConnection, initLabTestConnection, initOrderConnection, initUserConnection } from './db/connections.js';
 import authform from './routes/authform.js';
-import meRoute from './routes/me.js';
 import blogForm from './routes/blogInteraction.js';
 import consult from './routes/consultation.js';
 import consultBooking from './routes/consult_booking.js'
 import labTestForm from './routes/labTestForm.js';
 import orderForm from './routes/orderForm.js';
 import passwordResetRoutes from './routes/passwordReset.js';
+import me from './routes/me.js';
 dotenv.config();
 
 const startServer = async() => {
@@ -26,7 +26,7 @@ const startServer = async() => {
 
   // CORS Configuration
   app.use(cors({
-    origin: "*",
+    origin: "http://localhost:8080",
     credentials: true
   }));
 
@@ -50,10 +50,10 @@ const startServer = async() => {
   });
 
   // User profile route
-  app.use("/api/user", (req, res, next) => {
+  app.use("/api/me", (req, res, next) => {
     req.db = userConnection;
     next();
-  }, meRoute);
+  }, me);
 
   // Consultation routes
   app.use("/api/consulting", (req, res, next) => {

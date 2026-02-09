@@ -2,11 +2,10 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/user.js';
-import verifyToken from '../utils/verifytoken.js';
 
 const router = express.Router();
 
-router.get('/api/me', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const auth = req.headers.authorization || '';
     const token = auth.startsWith('Bearer ') ? auth.split(' ')[1] : null;

@@ -337,15 +337,38 @@ router.post('/create', verifyToken, upload.single('prescription'), async (req, r
 });
 
 // GET /api/orders/my-orders - Get User Orders
+// ✅ FIXED VERSION
 router.get("/my-orders", verifyToken, async (req, res) => {
+  console.log('📋 Fetching orders for user ID:', req.userId);
+  
   try {
     const Order = await getOrderModel();
-    const orders = await Order.find({ userId: req.userId }).sort({
-      orderDate: -1
-    });
+    
+    // ✅ FIX: Get the user first to get their custom userId
+    const user = await User.findById(req.userId);
+    
+    if (!user) {
+      console.error('❌ User not found:', req.userId);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    console.log('✅ User found:', user.email, 'Custom userId:', user.userId);
+    
+    // ✅ FIX: Search using BOTH _id and custom userId to be safe
+    const orders = await Order.find({
+      $or: [
+        { userId: user.userId },           // Custom userId (USER001)
+        { userId: req.userId },            // MongoDB _id
+        { userId: user._id.toString() }    // MongoDB _id as string
+      ]
+    }).sort({ orderDate: -1 });
+
+    console.log(`✅ Found ${orders.length} orders`);
 
     res.json({ success: true, orders });
-  } catch {
+    
+  } catch (error) {
+    console.error('❌ Error fetching orders:', error);
     res.status(500).json({ error: "Failed to fetch orders" });
   }
 });

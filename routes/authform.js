@@ -11,7 +11,7 @@ const router = express.Router();
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/auth/google/callback",
+    callbackURL: process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/auth/google/callback",
     passReqToCallback: true
   },
   async (req, accessToken, refreshToken, profile, done) => {
@@ -38,7 +38,7 @@ passport.use(new GoogleStrategy({
             name: profile.displayName,
             email: profile.emails[0].value,
             picture: profile.photos[0]?.value,
-            password: await bcrypt.hash('google-oauth-' + profile.id, 10), // Dummy password
+            password: await bcrypt.hash('google-oauth-' + profile.id, 10),
             role: 'patient'
           });
           console.log('✅ New user created via Google OAuth');
@@ -149,7 +149,7 @@ router.post('/logout', (req, res) => {
 
 // POST /api/auth/signup - Signup
 router.post('/signup', async (req, res) => {
-  console.log('📝 Signup attempt:', req.body.email);
+  console.log('🔍 Signup attempt:', req.body.email);
   
   const { name, email, password, phone } = req.body;
 
@@ -222,7 +222,7 @@ router.get('/google',
 router.get('/google/callback', 
   passport.authenticate('google', { 
     session: false,
-    failureRedirect: 'http://localhost:8080/login?error=google_auth_failed'
+    failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:8080'}/login?error=google_auth_failed`
   }),
   (req, res) => {
     console.log('✅ Google OAuth successful for:', req.user.email);
@@ -243,13 +243,17 @@ router.get('/google/callback',
       
       console.log('✅ Cookie set for Google user');
       
-      // Redirect to frontend with token in URL as backup
-      const redirectUrl = `http://localhost:8080/?token=${token}&login=success`;
+      // ✅ CRITICAL FIX: Redirect to /auth/success instead of /?token=xxx
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
+      const redirectUrl = `${frontendUrl}/auth/success?token=${token}`;
+      
+      console.log('🔀 Redirecting to:', redirectUrl);
       res.redirect(redirectUrl);
       
     } catch (error) {
       console.error('❌ Google OAuth callback error:', error);
-      res.redirect('http://localhost:8080/login?error=auth_failed');
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
+      res.redirect(`${frontendUrl}/login?error=auth_failed`);
     }
   }
 );

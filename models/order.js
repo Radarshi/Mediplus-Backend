@@ -42,15 +42,24 @@ const orderSchema = new mongoose.Schema({
     prescription: Boolean
   }],
   // Payment Information
+  // ✅ FIXED: Added 'upi' to enum values
   paymentMethod: {
     type: String,
-    enum: ['card', 'cod'],
+    enum: ['upi', 'cod', 'card', 'netbanking'],
     required: true
   },
   paymentStatus: {
     type: String,
-    enum: ['pending', 'paid', 'failed'],
+    enum: ['pending', 'paid', 'failed', 'refunded'],
     default: 'pending'
+  },
+  // ✅ NEW: Store transaction ID for UPI/Card payments
+  transactionId: {
+    type: String,
+    required: function() {
+      // Transaction ID is required for UPI payments
+      return this.paymentMethod === 'upi';
+    }
   },
   // Prescription
   prescriptionUrl: {
@@ -102,6 +111,7 @@ orderSchema.index({ orderId: 1 , unique: true});
 orderSchema.index({ orderStatus: 1 });
 orderSchema.index({ orderDate: -1 });
 orderSchema.index({ 'deliveryInfo.email': 1 });
+orderSchema.index({ transactionId: 1 }); // ✅ NEW: Index for transaction lookups
 
 export async function getOrderModel() {
   const connection = await initOrderConnection();

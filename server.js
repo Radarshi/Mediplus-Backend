@@ -79,7 +79,7 @@ const startServer = async() => {
   // ============================================
 
   // Auth routes (login, signup, Google OAuth)
-  app.use("/api/auth", (req, res, next) => {
+  app.use("/auth", (req, res, next) => {
     req.db = userConnection;
     next();
   }, authform);

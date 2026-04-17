@@ -1,89 +1,135 @@
-import mongoose from 'mongoose';
-import { initUserConnection } from '../db/connections.js';
+// models/user.js
+// Replaces Mongoose User model + Counter — uses Firestore 'users' collection
 
-// IMPORTANT: We need to ensure Counter model is available
-const CounterSchema = new mongoose.Schema({
-  _id: { type: String, required: true },
-  seq: { type: Number, default: 0 }
-});
+import { getDB } from '../db/firebase.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
-// Define the User Schema
-const UserSchema = new mongoose.Schema({
-  userId: {
-    type: String,
-    unique: true
-  },
-  name: {
-    type: String,
-    required: true
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  // --- Google Auth Fields ---
-  googleId: {
-    type: String, 
-    unique: true, 
-    sparse: true
-  },
-  picture: {
-    type: String
-  },
-  // --- Optional Fields ---
-  age: { type: Number, default: 0 },
-  gender: { type: String, default: 'other' },
-  phone: { type: String, default: '' },
-  password: { type: String, required: true }, 
-  role: {
-    type: String,
-    default: 'patient'
+const USERS_COL    = 'users';
+const COUNTERS_COL = 'counters';
+
+// ─── Auto-increment userId (USR0001, USR0002, …) ────────────────────────────
+const generateUserId = async (db) => {
+  const counterRef = db.collection(COUNTERS_COL).doc('userId');
+
+  const newId = await db.runTransaction(async (tx) => {
+    const doc = await tx.get(counterRef);
+    const seq  = doc.exists ? doc.data().seq + 1 : 1;
+    tx.set(counterRef, { seq }, { merge: true });
+    return 'USR' + String(seq).padStart(4, '0');
+  });
+
+  return newId;
+};
+
+// ─── CREATE ─────────────────────────────────────────────────────────────────
+export const createUser = async (data) => {
+  const db     = getDB();
+  const userId = await generateUserId(db);
+
+  const user = {
+    userId,
+    name:      data.name     ?? '',
+    email:     data.email.toLowerCase(),
+    password:  data.password ?? '',
+    phone:     data.phone    ?? '',
+    age:       data.age      ?? 0,
+    gender:    data.gender   ?? 'other',
+    role:      data.role     ?? 'patient',
+    googleId:  data.googleId ?? null,
+    picture:   data.picture  ?? null,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  const ref = await db.collection(USERS_COL).add(user);
+  return { _id: ref.id, ...user };
+};
+
+// ─── FIND BY EMAIL ───────────────────────────────────────────────────────────
+export const findUserByEmail = async (email) => {
+  const db  = getDB();
+  const snap = await db
+    .collection(USERS_COL)
+    .where('email', '==', email.toLowerCase())
+    .limit(1)
+    .get();
+
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  return { _id: doc.id, ...doc.data() };
+};
+
+// ─── FIND BY USERID FIELD (USRxxxx) ──────────────────────────────────────────\nexport const findUserByUserId = async (userId) => {\n  const db  = getDB();\n  const snap = await db.collection(USERS_COL).where('userId', '==', userId).limit(1).get();\n  if (snap.empty) return null;\n  const doc = snap.docs[0];\n  return { _id: doc.id, ...doc.data() };\n};\n\n// ─── FIND BY ID (Firestore doc id) ───────────────────────────────────────────\nexport const findUserById = async (id) => {\n  const db  = getDB();\n  const doc = await db.collection(USERS_COL).doc(id).get();\n  if (!doc.exists) return null;\n  return { _id: doc.id, ...doc.data() };\n};
+
+// ─── FIND BY GOOGLE ID ───────────────────────────────────────────────────────
+export const findUserByGoogleId = async (googleId) => {
+  const db  = getDB();
+  const snap = await db
+    .collection(USERS_COL)
+    .where('googleId', '==', googleId)
+    .limit(1)
+    .get();
+
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  return { _id: doc.id, ...doc.data() };
+};
+
+// ─── UPDATE ──────────────────────────────────────────────────────────────────
+export const updateUser = async (id, data) => {
+  const db  = getDB();
+  const ref = db.collection(USERS_COL).doc(id);
+
+  const updateData = { ...data, updatedAt: FieldValue.serverTimestamp() };
+  // Remove undefined keys
+  Object.keys(updateData).forEach(
+    (k) => updateData[k] === undefined && delete updateData[k]
+  );
+
+  await ref.update(updateData);
+  const updated = await ref.get();
+  return { _id: updated.id, ...updated.data() };
+};
+
+// ─── GET ALL (admin) ─────────────────────────────────────────────────────────
+export const getAllUsers = async ({ search, page = 1, limit = 20 } = {}) => {
+  const db   = getDB();
+  let   query = db.collection(USERS_COL).orderBy('createdAt', 'desc');
+
+  const snap  = await query.get();
+  let   users = snap.docs.map((d) => ({ _id: d.id, ...d.data() }));
+
+  // Simple in-memory search (Firestore full-text search requires Algolia / ext)
+  if (search) {
+    const s = search.toLowerCase();
+    users = users.filter(
+      (u) =>
+        u.name?.toLowerCase().includes(s) ||
+        u.email?.toLowerCase().includes(s) ||
+        u.userId?.toLowerCase().includes(s)
+    );
   }
-}, { timestamps: true });
 
-// Middleware: Auto-generate UserId (e.g., USR0005)
-UserSchema.pre("save", async function (next) {
-  if (this.isNew && !this.userId) {
-    try {
-      // Get the connection for this model
-      const connection = this.constructor.db;
-      
-      // Get or create Counter model on the same connection
-      let Counter;
-      try {
-        Counter = connection.model('Counter');
-      } catch (e) {
-        Counter = connection.model('Counter', CounterSchema);
-      }
+  const total    = users.length;
+  const startIdx = (page - 1) * limit;
+  const paged    = users.slice(startIdx, startIdx + limit);
 
-      const counter = await Counter.findByIdAndUpdate(
-        { _id: "userId" },
-        { $inc: { seq: 1 } },
-        { new: true, upsert: true }
-      );
-      
-      // Generate ID: USR + padded number (e.g., USR0005)
-      this.userId = "USR" + counter.seq.toString().padStart(4, "0");
-    } catch (err) {
-      console.error("Error generating userId:", err);
-      return next(err);
-    }
-  }
-  next();
-});
+  return { users: paged, total };
+};
 
-// Initialize connection and create model
-let User;
-const userConnection = await initUserConnection();
+// ─── COUNT ───────────────────────────────────────────────────────────────────
+export const countUsers = async () => {
+  const db   = getDB();
+  const snap = await db.collection(USERS_COL).count().get();
+  return snap.data().count;
+};
 
-// Ensure Counter model exists on this connection
-try {
-  userConnection.model('Counter');
-} catch (e) {
-  userConnection.model('Counter', CounterSchema);
-}
+// ─── UPDATE ROLE ─────────────────────────────────────────────────────────────
+export const updateUserRole = async (id, role) => {
+  return updateUser(id, { role });
+};
 
-User = userConnection.model('User', UserSchema);
-
-export default User;
+// ─── LINK GOOGLE ACCOUNT ─────────────────────────────────────────────────────
+export const linkGoogleAccount = async (id, googleId, picture) => {
+  return updateUser(id, { googleId, picture });
+};

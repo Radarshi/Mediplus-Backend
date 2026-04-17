@@ -1,73 +1,43 @@
-// backend/routes/me.js
+// routes/me.js
 import express from 'express';
-import User from '../models/user.js';
+import { findUserById, updateUser } from '../models/user.js';
 import verifyToken from '../utils/verifyToken.js';
 
 const router = express.Router();
 
-// ✅ GET /api/me - fetch current user profile
+// GET /api/me
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select('-password');
+    const user = await findUserById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    if (!user) {
-      console.log('❌ User not found:', req.userId);
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    console.log('✅ User found:', user.email);
-
-    res.json({
-      _id: user._id,
-      userId: user.userId,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      age: user.age,
-      gender: user.gender,
-      role: user.role,
-      picture: user.picture
-    });
+    const { password, ...safeUser } = user;
+    res.json({ ...safeUser, _id: user._id });
   } catch (err) {
-    console.error('❌ Error in GET /api/me:', err);
+    console.error('GET /api/me error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ✅ PUT /api/me - update current user profile
+// PUT /api/me
 router.put('/', verifyToken, async (req, res) => {
   try {
     const { name, phone, age, gender } = req.body;
 
-    const user = await User.findById(req.userId);
-    if (!user) {
-      console.log('❌ User not found:', req.userId);
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const user = await findUserById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Update fields if provided
-    user.name = name ?? user.name;
-    user.phone = phone ?? user.phone;
-    user.age = age ?? user.age;
-    user.gender = gender ?? user.gender;
-
-    await user.save();
-
-    console.log('✅ User profile updated:', user.email);
-
-    res.json({
-      _id: user._id,
-      userId: user.userId,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      age: user.age,
-      gender: user.gender,
-      role: user.role,
-      picture: user.picture
+    const updated = await updateUser(req.userId, {
+      name:   name   ?? user.name,
+      phone:  phone  ?? user.phone,
+      age:    age    ?? user.age,
+      gender: gender ?? user.gender,
     });
+
+    const { password, ...safeUser } = updated;
+    res.json(safeUser);
   } catch (err) {
-    console.error('❌ Error in PUT /api/me:', err);
+    console.error('PUT /api/me error:', err);
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });

@@ -1,159 +1,99 @@
+// server.js
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import passport from 'passport';
-import { initBlogConnection, initConsultConnection, initLabTestConnection, initOrderConnection, initUserConnection } from './db/connections.js';
-import authform from './routes/authform.js';
-import blogForm from './routes/blogInteraction.js';
-import consult from './routes/consultation.js';
-import consultBooking from './routes/consult_booking.js'
-import labTestForm from './routes/labTestForm.js';
-import orderForm from './routes/orderForm.js';
-import passwordResetRoutes from './routes/passwordReset.js';
-import paymentRoutes from './routes/paymentRoutes.js';
-import me from './routes/me.js';
+
+import { initFirebase } from './db/firebase.js';
+
+// Routes
+import authform       from './routes/authform.js';
+import blogForm       from './routes/blogInteraction.js';
+import consult        from './routes/consultation.js';
+import consultBooking from './routes/consult_booking.js';
+import labTestForm    from './routes/labTestForm.js';
+import orderForm      from './routes/orderForm.js';
+import passwordReset  from './routes/passwordReset.js';
+import paymentRoutes  from './routes/paymentRoutes.js';
+import me             from './routes/me.js';
+import adminRoutes    from './routes/adminRoutes.js';
 
 dotenv.config();
 
-const startServer = async() => {
-  console.log('🚀 Starting MediPlus Backend Server...');
-  
-  const userConnection = await initUserConnection();
-  const consultConnection = await initConsultConnection();
-  const labTestConnection = await initLabTestConnection();
-  const blogConnection = await initBlogConnection();
-  const orderConnection = await initOrderConnection();
+const startServer = async () => {
+  console.log('Starting MediPlus Backend Server...');
+  initFirebase();
 
   const app = express();
 
-  // CORS Configuration
+  //cors
   const allowedOrigins = [
     'http://localhost:8080',
     'http://localhost:8081',
     'http://localhost:5173',
-    'https://medi-plus-ten.vercel.app'
+    'https://medi-plus-ten.vercel.app',
   ];
 
-  app.use(cors({
-    origin: function(origin, callback) {
-      if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        console.warn('⚠️  CORS blocked origin:', origin);
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        console.warn('CORS blocked:', origin);
         callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true
-  }));
+      },
+      credentials: true,
+    })
+  );
 
-  app.get('/check', (req, res) => {
-    res.status(200).json({ 
-      message: 'Server is up',
-      timestamp: new Date().toISOString()
-    });
-  });
-
-  app.get('/api/health', (req, res) => {
-    res.json({ 
-      status: "ok",
-      timestamp: new Date().toISOString()
-    });
-  });
-
+  //Middleware
   app.use(express.json());
   app.use(morgan('dev'));
   app.use(cookieParser());
   app.use(passport.initialize());
 
-  console.log('✅ Middleware configured');
+  //Health 
+  app.get('/check',      (_, res) => res.json({ message: 'Server is up', timestamp: new Date().toISOString() }));
+  app.get('/api/health', (_, res) => res.json({ status: 'ok',  timestamp: new Date().toISOString() }));
 
-  // ============================================
-  // ✅ CRITICAL: AUTH ROUTES - MUST BE FIRST!
-  // ============================================
-  app.use("/api/auth", (req, res, next) => {
-    req.db = userConnection;
-    next();
-  }, authform);
-  console.log('✅ Auth routes registered at /api/auth');
-  console.log('   - POST /api/auth/login');
-  console.log('   - POST /api/auth/signup');
-  console.log('   - POST /api/auth/logout');
-  console.log('   - GET  /api/auth/google');
-  console.log('   - GET  /api/auth/google/callback');
+  //Routes
+  app.use('/api/auth',             authform);
+  app.use('/api/me',               me);
+  app.use('/api/consulting',       consult);
+  app.use('/api/send-confirmation', consultBooking);
+  app.use('/api/lab-booking',      labTestForm);
+  app.use('/api/blogs',            blogForm);
+  app.use('/api/orders',           orderForm);
+  app.use('/api/password-reset',   passwordReset);
+  app.use('/api/payments',         paymentRoutes);
+  app.use('/api/admin',            adminRoutes);
 
-  app.use("/api/me", (req, res, next) => {
-    req.db = userConnection;
-    next();
-  }, me);
-  console.log('✅ User profile routes registered at /api/me');
+  console.log('All routes registered');
 
-  app.use("/api/consulting", (req, res, next) => {
-    req.db = consultConnection;
-    next();
-  }, consult);
-  console.log('✅ Consultation routes registered at /api/consulting');
-
-  app.use("/api/send-confirmation", (req, res, next) => {
-    req.db = consultConnection;
-    next();
-  }, consultBooking);
-  console.log('✅ Consultation booking routes registered at /api/send-confirmation');
-
-  app.use("/api/lab-booking", (req,res,next) => {
-    req.db = labTestConnection;
-    next();
-  },labTestForm);
-  console.log('✅ Lab test routes registered at /api/lab-booking');
-
-  app.use("/api/blogs",(req,res,next) => {
-    req.db = blogConnection;
-    next();
-  },blogForm);
-  console.log('✅ Blog routes registered at /api/blogs');
-
-  app.use("/api/orders",(req,res,next) => {
-    req.db = orderConnection;
-    next();
-  },orderForm);
-  console.log('✅ Order routes registered at /api/orders');
-
-  app.use("/api/password-reset", passwordResetRoutes);
-  console.log('✅ Password reset routes registered at /api/password-reset');
-
-  app.use("/api/payments", paymentRoutes);
-  console.log('✅ Payment routes registered at /api/payments');
-
+  //Error handler
   app.use((err, req, res, next) => {
-    console.error('❌ Error:', err);
+    console.error('Unhandled error:', err.message);
     res.status(500).json({ error: err.message || 'Internal server error' });
   });
 
+  //404
   app.use((req, res) => {
-    console.warn('⚠️  404 Not Found:', req.method, req.path);
-    res.status(404).json({ 
-      error: 'Route not found',
-      path: req.path,
-      method: req.method
-    });
+    console.warn('404:', req.method, req.path);
+    res.status(404).json({ error: 'Route not found', path: req.path, method: req.method });
   });
 
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
     console.log('');
-    console.log('='.repeat(60));
-    console.log(`✅ MediPlus Backend Server Running`);
-    console.log(`📍 Port: ${PORT}`);
-    console.log(`🔗 URL: http://localhost:${PORT}`);
-    console.log('='.repeat(60));
-    console.log('');
+    console.log('='.repeat(50));
+    console.log(`MediPlus Backend Running on port ${PORT}`);
+    console.log(`Database: Firebase Firestore`);
+    console.log('='.repeat(50));
   });
-}
+};
 
-startServer().catch(err => {
-  console.error('❌ Failed to start server:', err);
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
   process.exit(1);
 });

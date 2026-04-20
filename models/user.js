@@ -59,7 +59,22 @@ export const findUserByEmail = async (email) => {
   return { _id: doc.id, ...doc.data() };
 };
 
-// ─── FIND BY USERID FIELD (USRxxxx) ──────────────────────────────────────────\nexport const findUserByUserId = async (userId) => {\n  const db  = getDB();\n  const snap = await db.collection(USERS_COL).where('userId', '==', userId).limit(1).get();\n  if (snap.empty) return null;\n  const doc = snap.docs[0];\n  return { _id: doc.id, ...doc.data() };\n};\n\n// ─── FIND BY ID (Firestore doc id) ───────────────────────────────────────────\nexport const findUserById = async (id) => {\n  const db  = getDB();\n  const doc = await db.collection(USERS_COL).doc(id).get();\n  if (!doc.exists) return null;\n  return { _id: doc.id, ...doc.data() };\n};
+// ─── FIND BY USERID FIELD (USRxxxx) ──────────────────────────────────────────
+export const findUserByUserId = async (userId) => {
+  const db  = getDB();
+  const snap = await db.collection(USERS_COL).where('userId', '==', userId).limit(1).get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  return { _id: doc.id, ...doc.data() };
+};
+
+// ─── FIND BY ID (Firestore doc id) ───────────────────────────────────────────
+export const findUserById = async (id) => {
+  const db  = getDB();
+  const doc = await db.collection(USERS_COL).doc(id).get();
+  if (!doc.exists) return null;
+  return { _id: doc.id, ...doc.data() };
+};
 
 // ─── FIND BY GOOGLE ID ───────────────────────────────────────────────────────
 export const findUserByGoogleId = async (googleId) => {
@@ -133,3 +148,4 @@ export const updateUserRole = async (id, role) => {
 export const linkGoogleAccount = async (id, googleId, picture) => {
   return updateUser(id, { googleId, picture });
 };
+

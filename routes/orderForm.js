@@ -6,7 +6,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { createOrder, findOrdersByUser, getAllOrders, findOrderById, updateOrderStatus, deleteOrder } from '../models/order.js';
-import { findUserById, findUserByEmail } from '../models/user.js';
+import { findUserById, findUserByUserId } from '../models/user.js';
 import verifyToken from '../utils/verifytoken.js';
 
 dotenv.config();
@@ -44,7 +44,8 @@ const createTransporter = () =>
 router.post('/create', verifyToken, upload.single('prescription'), async (req, res) => {
   console.log('🛒 Order creation started...');
   try {
-    const user = await findUserByUserId(req.userId);\n    if (!user) return res.status(404).json({ error: 'User not found' });
+    const user = await findUserById(req.userId);   
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
     const {
       deliveryInfo, items, paymentMethod, transactionId,
@@ -75,7 +76,7 @@ router.post('/create', verifyToken, upload.single('prescription'), async (req, r
       orderNotes:    orderNotes ?? '',
     });
 
-    console.log('✅ Order created:', order.orderId);
+    console.log(' Order created:', order.orderId);
 
     // Send confirmation email (non-blocking)
     try {
@@ -89,7 +90,7 @@ router.post('/create', verifyToken, upload.single('prescription'), async (req, r
         to:      parsedDeliveryInfo.email,
         subject: `Order Confirmation - ${order.orderId}`,
         html: `
-          <h2>🎉 Order Confirmed!</h2>
+          <h2> Order Confirmed!</h2>
           <p>Hello <strong>${parsedDeliveryInfo.fullName}</strong>,</p>
           <p>Order ID: <strong>${order.orderId}</strong></p>
           <ul>${itemsHTML}</ul>
@@ -98,9 +99,9 @@ router.post('/create', verifyToken, upload.single('prescription'), async (req, r
           <p>Thank you for choosing MediPlus!</p>
         `,
       });
-      console.log('✅ Order confirmation email sent');
+      console.log(' Order confirmation email sent');
     } catch (emailErr) {
-      console.error('❌ Email failed (order still created):', emailErr.message);
+      console.error(' Email failed (order still created):', emailErr.message);
     }
 
     res.status(201).json({
@@ -116,7 +117,7 @@ router.post('/create', verifyToken, upload.single('prescription'), async (req, r
       },
     });
   } catch (err) {
-    console.error('❌ Order failed:', err);
+    console.error(' Order failed:', err);
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     res.status(500).json({ error: err.message || 'Failed to place order' });
   }
@@ -128,11 +129,10 @@ router.get('/my-orders', verifyToken, async (req, res) => {
     const user = await findUserById(req.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Try both userId formats for backwards compatibility
-    const orders = await findOrdersByUser(user.userId || user._id);
+    const orders = await findOrdersByUser(user.userId);
     res.json({ success: true, orders });
   } catch (err) {
-    console.error('❌ Fetch orders error:', err);
+    console.error(' Fetch orders error:', err);
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
 });
@@ -144,7 +144,7 @@ router.get('/admin/all', verifyToken, async (req, res) => {
     const { orders, total }  = await getAllOrders({ status, search });
     res.json({ success: true, orders, count: total });
   } catch (err) {
-    console.error('❌ Admin fetch orders error:', err);
+    console.error(' Admin fetch orders error:', err);
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
 });
@@ -168,7 +168,7 @@ router.put('/:orderId/status', verifyToken, async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found' });
     res.json({ success: true, message: 'Order status updated', order });
   } catch (err) {
-    console.error('❌ Update status error:', err);
+    console.error(' Update status error:', err);
     res.status(500).json({ error: 'Failed to update order status' });
   }
 });

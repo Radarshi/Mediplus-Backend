@@ -22,11 +22,11 @@ export const initFirebase = () => {
       const serviceAccount = JSON.parse(readFileSync(keyPath, 'utf8'));
 
       initializeApp({ credential: cert(serviceAccount) });
-      console.log('✅ Firebase Admin SDK initialized via serviceAccountKey.json');
+      console.log('Firebase Admin SDK initialized via serviceAccountKey.json');
 
     } catch (fileError) {
       // METHOD 2: Fallback to env vars
-      console.log('⚠️  serviceAccountKey.json not found, trying env vars...');
+      console.log('serviceAccountKey.json not found, trying env vars...');
 
       const privateKey = process.env.FIREBASE_PRIVATE_KEY
         ?.replace(/\\n/g, '\n')
@@ -39,7 +39,7 @@ export const initFirebase = () => {
           privateKey,
         }),
       });
-      console.log('✅ Firebase Admin SDK initialized via env vars');
+      console.log('Firebase Admin SDK initialized via env vars');
     }
   }
 

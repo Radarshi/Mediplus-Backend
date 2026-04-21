@@ -1,63 +1,60 @@
-import express from "express";
-import { getBlogModel } from "../models/blogs.js";
-import User from '../models/user.js';
+// routes/blogInteraction.js
+import express from 'express';
+import { createBlog, getAllBlogs, getBlogById } from '../models/blogs.js';
+import { findUserByEmail } from '../models/user.js';
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
+// GET /api/blogs
+router.get('/', async (req, res) => {
   try {
-    const Blog = await getBlogModel();
-    const blogs = await Blog.find().sort({createdAt:-1});
+    const blogs = await getAllBlogs();
     res.json(blogs);
   } catch (err) {
-    console.error("Error while fetching blogs",err);
+    console.error('Error fetching blogs:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-router.get("/:id", async (req, res) => {
+// GET /api/blogs/:id
+router.get('/:id', async (req, res) => {
   try {
-    const Blog = await getBlogModel();
-    const blog = await Blog.findById(req.params.id);
-    if (!blog)
-      return res.status(404).json({ error: "Blog not found" });
+    const blog = await getBlogById(req.params.id);
+    if (!blog) return res.status(404).json({ error: 'Blog not found' });
     res.json(blog);
   } catch (err) {
-    console.error("Error in fetching blogs",err);
+    console.error('Error fetching blog:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST a new blog
-router.post("/", async (req, res) => {
-  console.log(req.body);
+// POST /api/blogs
+router.post('/', async (req, res) => {
   try {
-    const Blog = await getBlogModel();
-    const { featured,author,title,email,content,category,tags } = req.body;
-    console.log(req.body);
+    const { featured, author, title, email, content, category, tags } = req.body;
 
-    const user = await User.findOne({email});
     if (!author || !title || !content || !category) {
-      return res.status(400).json({ error: "Title and content are required" });
+      return res.status(400).json({ error: 'Author, title, content and category are required' });
     }
 
-    const newBlog = new Blog({
-      userId: user.userId,
-      featured,
+    const user   = await findUserByEmail(email);
+    const userId = user?.userId ?? 'GUEST';
+
+    const blog = await createBlog({
+      userId,
+      featured: featured ?? false,
       author,
       title,
       email,
-      excerpt:content.slice(0,120) + '...',
+      excerpt: content.slice(0, 120) + '...',
       content,
-      tags,
-      date: new Date().toLocaleDateString(),
-      category
-      });
+      tags:     tags ?? [],
+      category,
+    });
 
-    const savedBlog = await newBlog.save();
-    res.status(201).json(savedBlog);
+    res.status(201).json(blog);
   } catch (err) {
-    console.error("Error while posting the form",err);
+    console.error('Error posting blog:', err);
     res.status(500).json({ error: err.message });
   }
 });

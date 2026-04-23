@@ -1,8 +1,3 @@
-// scripts/seedIndianDoctors.js
-// Run ONCE: node scripts/seedIndianDoctors.js
-// Reads indian_doctors_supabase_ready_csv.xlsx → uploads to Firestore 'consult' collection
-// Replaces/merges with any existing consult data
-
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { readFileSync } from 'fs';
@@ -13,8 +8,6 @@ import { createRequire } from 'module';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require   = createRequire(import.meta.url);
 
-// ── We use xlsx npm package to read the Excel file ───────────────────────────
-// First run: npm install xlsx
 let XLSX;
 try {
   XLSX = require('xlsx');

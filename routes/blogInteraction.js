@@ -1,4 +1,3 @@
-// routes/blogInteraction.js
 import express from 'express';
 import { createBlog, getAllBlogs, getBlogById } from '../models/blogs.js';
 import { findUserByEmail } from '../models/user.js';

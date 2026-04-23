@@ -1,4 +1,3 @@
-// routes/adminRoutes.js
 import express from 'express';
 import verifyToken from '../utils/verifyToken.js';
 import { findUserById, getAllUsers, updateUserRole, countUsers } from '../models/user.js';
@@ -6,12 +5,14 @@ import { getAllOrders, updateOrderStatus, deleteOrder, getDashboardStats } from 
 
 const router = express.Router();
 
-// ─── Admin check middleware ───────────────────────────────────────────────────
+//  Admin check middleware 
 const verifyAdmin = async (req, res, next) => {
   try {
     const user = await findUserById(req.userId);
-    if (!user)             return res.status(404).json({ error: 'User not found' });
-    if (user.role !== 'admin') return res.status(403).json({ error: 'Access denied. Admin only.' });
+    if (!user)
+      return res.status(404).json({ error: 'User not found' });
+    if (user.role !== 'admin') 
+      return res.status(403).json({ error: 'Access denied. Admin only.' });
     req.adminUser = user;
     next();
   } catch (err) {
@@ -20,7 +21,7 @@ const verifyAdmin = async (req, res, next) => {
   }
 };
 
-// ─── GET /api/admin/dashboard ─────────────────────────────────────────────────
+// GET /api/admin/dashboard 
 router.get('/dashboard', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const stats      = await getDashboardStats();
@@ -34,12 +35,12 @@ router.get('/dashboard', verifyToken, verifyAdmin, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('❌ Dashboard error:', err);
+    console.error('Dashboard error:', err);
     res.status(500).json({ error: 'Failed to fetch dashboard data' });
   }
 });
 
-// ─── GET /api/admin/orders ────────────────────────────────────────────────────
+// GET /api/admin/orders
 router.get('/orders', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { status, search, page = 1, limit = 20 } = req.query;
@@ -50,12 +51,12 @@ router.get('/orders', verifyToken, verifyAdmin, async (req, res) => {
       pagination: { total, page: parseInt(page), pages: Math.ceil(total / limit), limit: parseInt(limit) },
     });
   } catch (err) {
-    console.error('❌ Fetch orders error:', err);
+    console.error('Fetch orders error:', err);
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
 });
 
-// ─── PUT /api/admin/orders/:orderId/status ────────────────────────────────────
+// PUT /api/admin/orders/:orderId/status
 router.put('/orders/:orderId/status', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { status, note } = req.body;
@@ -63,24 +64,24 @@ router.put('/orders/:orderId/status', verifyToken, verifyAdmin, async (req, res)
     if (!order) return res.status(404).json({ error: 'Order not found' });
     res.json({ success: true, message: 'Order status updated', order });
   } catch (err) {
-    console.error('❌ Update order error:', err);
+    console.error('Update order error:', err);
     res.status(500).json({ error: 'Failed to update order status' });
   }
 });
 
-// ─── DELETE /api/admin/orders/:orderId ───────────────────────────────────────
+// DELETE /api/admin/orders/:orderId
 router.delete('/orders/:orderId', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const order = await deleteOrder(req.params.orderId);
     if (!order) return res.status(404).json({ error: 'Order not found' });
     res.json({ success: true, message: 'Order deleted successfully' });
   } catch (err) {
-    console.error('❌ Delete order error:', err);
+    console.error('Delete order error:', err);
     res.status(500).json({ error: 'Failed to delete order' });
   }
 });
 
-// ─── GET /api/admin/users ─────────────────────────────────────────────────────
+// GET /api/admin/users
 router.get('/users', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { search, page = 1, limit = 20 } = req.query;
@@ -91,12 +92,12 @@ router.get('/users', verifyToken, verifyAdmin, async (req, res) => {
       pagination: { total, page: parseInt(page), pages: Math.ceil(total / limit), limit: parseInt(limit) },
     });
   } catch (err) {
-    console.error('❌ Fetch users error:', err);
+    console.error('Fetch users error:', err);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 
-// ─── PUT /api/admin/users/:userId/role ───────────────────────────────────────
+// PUT /api/admin/users/:userId/role
 router.put('/users/:userId/role', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { role } = req.body;
@@ -107,7 +108,7 @@ router.put('/users/:userId/role', verifyToken, verifyAdmin, async (req, res) => 
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ success: true, message: 'User role updated', user });
   } catch (err) {
-    console.error('❌ Update role error:', err);
+    console.error('Update role error:', err);
     res.status(500).json({ error: 'Failed to update user role' });
   }
 });

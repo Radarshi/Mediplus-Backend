@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
-import verifyToken from '../utils/verifytoken.js';
+import verifyToken from '../utils/verifyToken.js';
 
 const router = express.Router();
 

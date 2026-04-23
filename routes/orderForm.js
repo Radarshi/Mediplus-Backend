@@ -7,7 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import { createOrder, findOrdersByUser, getAllOrders, findOrderById, updateOrderStatus, deleteOrder } from '../models/order.js';
 import { findUserById, findUserByUserId } from '../models/user.js';
-import verifyToken from '../utils/verifytoken.js';
+import verifyToken from '../utils/verifyToken.js';
 
 dotenv.config();
 const router = express.Router();

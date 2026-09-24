@@ -1,103 +1,117 @@
-import dotenv from 'dotenv';
+// routes/labTestForm.js
 import express from 'express';
 import nodemailer from 'nodemailer';
-import validator from 'validator';
-import { createLabBooking } from '../models/lab-test.js';
-import { findUserByEmail } from '../models/user.js';
+import {
+  getAllLabTests, getLabTestById,
+  createLabBooking, findBookingsByUser, updateBookingStatus
+} from '../models/labTest.js';
+import { findUserById } from '../models/user.js';
+import verifyToken from '../utils/verifyToken.js';
 
-dotenv.config();
 const router = express.Router();
 
-// POST /api/lab-booking
-router.post('/', async (req, res) => {
-  try {
-    const { name, phone, email, address, date, time, instruction, labtest_id, labtest_name, venue } = req.body;
+const createTransporter = () =>
+  nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+  });
 
-    if (!validator.isEmail(email)) {
-      return res.status(400).json({ error: 'Invalid email address' });
+// GET /api/lab-booking/tests — public catalog (no auth needed)
+router.get('/tests', async (req, res) => {
+  try {
+    const tests = await getAllLabTests();
+    res.json({ success: true, tests });
+  } catch (err) {
+    console.error('Fetch lab tests error:', err);
+    res.status(500).json({ error: 'Failed to fetch lab tests' });
+  }
+});
+
+// GET /api/lab-booking/tests/:id
+router.get('/tests/:id', async (req, res) => {
+  try {
+    const test = await getLabTestById(req.params.id);
+    if (!test) return res.status(404).json({ error: 'Test not found' });
+    res.json({ success: true, test });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch test' });
+  }
+});
+
+// POST /api/lab-booking/create — book test(s)
+router.post('/create', verifyToken, async (req, res) => {
+  try {
+    const user = await findUserById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const { tests, patientInfo, address, preferredDate, preferredTime, paymentMethod } = req.body;
+
+    if (!tests?.length || !patientInfo || !address || !preferredDate || !preferredTime) {
+      return res.status(400).json({ error: 'Missing required booking information' });
     }
 
-    const user   = await findUserByEmail(email.toLowerCase());
-    const userId = user?.userId ?? 'GUEST';
+    const subtotal = tests.reduce((s, t) => s + Number(t.price), 0);
+    const total    = subtotal; // add discounts/charges here later if needed
 
     const booking = await createLabBooking({
-      userId, name, phone, email, address, date, time,
-      instruction, labtest_id, labtest_name, venue,
+      userId:      user.userId,
+      userDetails: { name: user.name, email: user.email, phone: user.phone },
+      tests, patientInfo, address, preferredDate, preferredTime,
+      subtotal, total, paymentMethod,
     });
 
-    console.log('Lab booking created:', booking._id);
+    // Confirmation email (non-blocking)
+    try {
+      const transporter = createTransporter();
+      const testsHTML = tests.map(t => `<li>${t.name} — ₹${t.price}</li>`).join('');
+      await transporter.sendMail({
+        from: `"MediPlus" <${process.env.EMAIL_USER}>`,
+        to: patientInfo.email || user.email,
+        subject: `Lab Test Booking Confirmed - ${booking.bookingId}`,
+        html: `
+          <h2>🧪 Booking Confirmed!</h2>
+          <p>Hello <strong>${patientInfo.fullName}</strong>,</p>
+          <p>Booking ID: <strong>${booking.bookingId}</strong></p>
+          <ul>${testsHTML}</ul>
+          <p><strong>Total: ₹${total.toFixed(2)}</strong></p>
+          <p>Sample collection: ${preferredDate} at ${preferredTime}</p>
+          <p>Address: ${address.address}, ${address.city}</p>
+          <p>Thank you for choosing MediPlus!</p>
+        `,
+      });
+    } catch (emailErr) {
+      console.error('Lab booking email failed:', emailErr.message);
+    }
 
-    // Send confirmation email
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-    });
-
-    await transporter.sendMail({
-      from: `"MediPlus" <${process.env.EMAIL_USER}>`,
-  to: email,
-  subject: 'Your Lab Test Booking is Confirmed | MediPlus',
-  html: `
-  <div style="font-family: Arial, sans-serif; background-color: #f4f8fb; padding: 30px; margin: 0;">
-    <div style="max-width: 600px; margin: auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-      
-      <!-- Header -->
-      <div style="background: linear-gradient(90deg, #0d6efd, #00b894); padding: 25px; text-align: center;">
-        <img src="https://ibb.co/jkmNW26g" alt="MediPlus Logo" style="height: 60px; margin-bottom: 10px;" />
-        <h1 style="color: #ffffff; margin: 0; font-size: 28px;">MediPlus</h1>
-        <p style="color: #eaf6ff; margin: 5px 0 0;">Your Trusted Medical Partner</p>
-      </div>
-
-      <!-- Body -->
-      <div style="padding: 30px; color: #333333;">
-        <h2 style="color: #0d6efd; margin-top: 0;">Lab Test Booking Confirmed</h2>
-        
-        <p>Hello <b>${name}</b>,</p>
-        
-        <p>
-          We are pleased to inform you that your lab test booking has been successfully confirmed.
-        </p>
-
-        <div style="background: #f8fbff; border: 1px solid #dbeafe; border-radius: 10px; padding: 20px; margin: 20px 0;">
-          <p style="margin: 0 0 10px;"><b>Test Name:</b> ${labtest_name}</p>
-          <p style="margin: 0 0 10px;"><b>Venue:</b> ${venue}</p>
-          <p style="margin: 0 0 10px;"><b>Date:</b> ${date}</p>
-          <p style="margin: 0;"><b>Time:</b> ${time}</p>
-        </div>
-
-        <p>
-          Please arrive 10 minutes before your scheduled time and carry a valid ID proof if required.
-        </p>
-
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="" 
-             style="background: #0d6efd; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold; display: inline-block;">
-             View Booking
-          </a>
-        </div>
-
-        <p>
-          Thank you for choosing <b>MediPlus</b>. We are committed to making healthcare simple, reliable, and accessible for you.
-        </p>
-
-        <p style="margin-top: 30px;">Stay Healthy,<br/><b>Team MediPlus</b></p>
-      </div>
-
-      <!-- Footer -->
-      <div style="background: #f1f5f9; text-align: center; padding: 20px; font-size: 13px; color: #666;">
-        <p style="margin: 0;">© 2026 MediPlus. All Rights Reserved.</p>
-        <p style="margin: 5px 0 0;">Need help? Contact us at support@mediplus.com</p>
-      </div>
-    </div>
-  </div>
-`
-    });
-
-    res.status(201).json({ message: 'Booking successful, confirmation email sent!', booking });
+    res.status(201).json({ success: true, message: 'Lab test booked successfully!', booking });
   } catch (err) {
-    console.error('Lab booking failed:', err);
-    res.status(500).json({ error: 'Server error' });
-    alert('An unexpected error occured! Please try again later')
+    console.error('Lab booking error:', err);
+    res.status(500).json({ error: 'Failed to book lab test' });
+  }
+});
+
+// GET /api/lab-booking/my-bookings
+router.get('/my-bookings', verifyToken, async (req, res) => {
+  try {
+    const user = await findUserById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const bookings = await findBookingsByUser(user.userId);
+    res.json({ success: true, bookings });
+  } catch (err) {
+    console.error('Fetch bookings error:', err);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
+
+// PUT /api/lab-booking/:bookingId/status (admin)
+router.put('/:bookingId/status', verifyToken, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const booking = await updateBookingStatus(req.params.bookingId, status);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    res.json({ success: true, booking });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update status' });
   }
 });
 

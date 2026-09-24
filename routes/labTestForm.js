@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 import {
   getAllLabTests, getLabTestById,
   createLabBooking, findBookingsByUser, updateBookingStatus
-} from '../models/labTest.js';
+} from '../models/lab-test.js';
 import { findUserById } from '../models/user.js';
 import verifyToken from '../utils/verifyToken.js';
 
